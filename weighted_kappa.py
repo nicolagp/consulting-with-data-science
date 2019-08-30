@@ -11,7 +11,7 @@ def main():
     print(kappa)
 
 def get_train_data():
-    return pd.read_csv('../prudential-life-insurance-assessment/train.csv')
+    return pd.read_csv('data/prudential-life-insurance-assessment/train.csv')
 
 def get_random_responses(train):
     responses = np.zeros((train.shape[0], 1))
@@ -21,20 +21,14 @@ def get_random_responses(train):
 
 
 """
-predicted: array of predictions for each example
-actual: correct label for each example
+predicted: numpy array of predictions for each example
+actual: numpy array of correct labels for each example
 n: number of rating categories
 return: score
 """
 def weighted_kappa(predicted, actual, n):
     # calculate observed matrix
     observed = confusion_matrix(actual, predicted)
-    # observed = np.zeros((n, n))
-    # for i in actual:
-    #     for j in predicted:
-    #         row = int(i - 1)
-    #         col = int(j - 1)
-    #         observed[row][col] += 1
 
     # calculate weights matrix
     weights = np.zeros((n, n))
@@ -43,7 +37,9 @@ def weighted_kappa(predicted, actual, n):
             weights[i][j] = abs(i - j)
 
     # calculate and normalize expected matrix
-    expected = np.matmul(np.transpose(actual), predicted)
+    actual_counts = np.array([actual.value_counts()])
+    predicted_counts = np.array([predicted.value_counts()])
+    expected = np.matmul(np.transpose(actual_counts), predicted_counts)
     normalization = observed.sum() / expected.sum()
     expected = expected * normalization
 
