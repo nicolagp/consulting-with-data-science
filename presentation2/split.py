@@ -19,7 +19,5 @@ def main():
     old_data.to_csv('old_data.csv')
 
 
-
-
 if __name__ == "__main__":
     main()
