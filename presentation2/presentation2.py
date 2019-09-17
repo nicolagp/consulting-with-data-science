@@ -1,22 +1,26 @@
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.model_selection import RandomizedSearchCV, cross_val_score, train_test_split
 import pandas as pd
+import numpy as np
 
 
 def main():
-    original = pd.read_csv('../data/prudential-life-insurance-assessment/train.csv')
-    original = clean(original)
+    train = pd.read_csv('../data/prudential-life-insurance-assessment/train.csv')
+    train = clean(train)
+
     # Split into different age groups
-    young_data = original[original['Ins_Age'] < 0.2].copy()
-    old_data = original[original['Ins_Age'] >= 0.2].copy()
+    train_original_x, train_original_y, train_young_x, train_young_y, train_old_x, train_old_y = split(train)
 
     # Get feature selection for each group
-    original_features = [i[0] for i in get_ranking(original)[:10]]
-    young_features = [i[0] for i in get_ranking(young_data)[:10]]
-    old_features = [i[0] for i in get_ranking(old_data)[:10]]
+    original_features = [i[0] for i in get_ranking(train_original_x, train_original_y)[:10]]
+    young_features = [i[0] for i in get_ranking(train_young_x, train_young_y)[:10]]
+    old_features = [i[0] for i in get_ranking(train_old_x, train_old_y)[:10]]
 
-    # Run Random Forests
-
+    # Run Models
+    random_forests(train_original_x[original_features], train_original_y)
 
 def clean(data):
     # dropping less important columns
@@ -36,22 +40,77 @@ def clean(data):
 
     return data
 
-def get_ranking(df):
-    X = df.drop(['Response', 'Product_Info_2', "Id"], axis=1).values
-    X2 = df.drop(['Response', 'Product_Info_2', "Id"], axis=1)
-    Y = df['Response']
-    lr = LinearRegression(normalize=True)
-    lr.fit(X, Y)
-    rfe = RFE(lr, n_features_to_select=10)
-    rfe.fit(X, Y)
+def get_ranking(data, response):
+    # Drop categorical data
+    data.drop('Product_Info_2', axis=1, inplace=True)
 
-    labels = list(X2.columns)
+    lr = LinearRegression(normalize=True)
+    lr.fit(data.values, response)
+    rfe = RFE(lr, n_features_to_select=10)
+    rfe.fit(data.values, response)
+
+    labels = list(data.columns)
     ranking = {labels[i]: rfe.ranking_[i] for i in range(len(labels))}
     ranking_list = [(k, ranking[k]) for k in sorted(ranking, key=ranking.get)]
     return ranking_list
 
-# def random_forests(df):
+"""
+Returns in this order: original_x, original_y, young_x, young_y, old_x, old_y 
+"""
+def split(original):
+    original_x = original.drop('Response', axis=1)
+    original_y = original['Response']
+    young_x = original[original['Ins_Age'] < 0.2].drop('Response', axis=1)
+    young_y = original[original['Ins_Age'] < 0.2]['Response']
+    old_x = original[original['Ins_Age'] >= 0.2].drop('Response', axis=1)
+    old_y = original[original['Ins_Age'] >= 0.2]['Response']
 
+    return original_x, original_y, young_x, young_y, old_x, old_y
+
+def random_forests(x, y):
+    # Split into train and test
+    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=66)
+    # fitting model
+    rfc = RandomForestClassifier()
+    rfc.fit(X_train, y_train)
+    rfc_predict = rfc.predict(X_test)
+
+    # scoring
+    rfc_cv_score = cross_val_score(rfc, x, y, cv=10)
+
+    print("=== Confusion Matrix ===")
+    print(confusion_matrix(y_test, rfc_predict))
+    print('\n')
+    print("=== Classification Report ===")
+    print(classification_report(y_test, rfc_predict))
+    print('\n')
+    print("=== All AUC Scores ===")
+    print(rfc_cv_score)
+    print('\n')
+    print("=== Mean AUC Score ===")
+    print("Mean AUC Score - Random Forest: ", rfc_cv_score.mean())
+
+    # # number of trees in random forest
+    # n_estimators = [int(x) for x in np.linspace(start=200, stop=2000, num=10)]
+    # # number of features at every split
+    # max_features = ['auto', 'sqrt']
+    #
+    # # max depth
+    # max_depth = [int(x) for x in np.linspace(100, 500, num=11)]
+    # max_depth.append(None)
+    # # create random grid
+    # random_grid = {
+    #     'n_estimators': n_estimators,
+    #     'max_features': max_features,
+    #     'max_depth': max_depth
+    # }
+    # # Random search of parameters
+    # rfc_random = RandomizedSearchCV(estimator=rfc, param_distributions=random_grid, n_iter=100, cv=3, verbose=2,
+    #                                 random_state=42, n_jobs=-1)
+    # # Fit the model
+    # rfc_random.fit(x, y)
+    # # print results
+    # print(rfc_random.best_params_)
 
 if __name__ == '__main__':
     main()
