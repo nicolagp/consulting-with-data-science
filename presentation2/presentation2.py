@@ -105,12 +105,34 @@ def random_forests(x, y):
     #     'max_depth': max_depth
     # }
     # # Random search of parameters
-    # rfc_random = RandomizedSearchCV(estimator=rfc, param_distributions=random_grid, n_iter=100, cv=3, verbose=2,
+    # rfc_random = RandomizedSearchCV(estimator=rfc, param_distributions=random_grid, n_iter=5, cv=3, verbose=2,
     #                                 random_state=42, n_jobs=-1)
     # # Fit the model
-    # rfc_random.fit(x, y)
+    # rfc_random.fit(X_train, y_train)
     # # print results
     # print(rfc_random.best_params_)
+
+    # rfc = RandomForestClassifier(n_estimators=rfc_random.best_params_['n_estimators'],
+    #                              max_depth=rfc_random.best_params_['max_depth'],
+    #                              max_features=rfc_random.best_params_['max_features'])
+    rfc = RandomForestClassifier(n_estimators=1400,
+                                 max_depth=100,
+                                 max_features='auto')
+
+    rfc.fit(X_train, y_train)
+    rfc_predict = rfc.predict(X_test)
+    rfc_cv_score = cross_val_score(rfc, x, y, cv=10)
+    print("=== Confusion Matrix ===")
+    print(confusion_matrix(y_test, rfc_predict))
+    print('\n')
+    print("=== Classification Report ===")
+    print(classification_report(y_test, rfc_predict))
+    print('\n')
+    print("=== All AUC Scores ===")
+    print(rfc_cv_score)
+    print('\n')
+    print("=== Mean AUC Score ===")
+    print("Mean AUC Score - Random Forest: ", rfc_cv_score.mean())
 
 if __name__ == '__main__':
     main()
