@@ -1,10 +1,11 @@
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import confusion_matrix, classification_report
-from sklearn.model_selection import RandomizedSearchCV, cross_val_score, train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
+from sklearn.naive_bayes import ComplementNB, MultinomialNB
 
 
 def main():
@@ -20,7 +21,30 @@ def main():
     old_features = [i[0] for i in get_ranking(train_old_x, train_old_y)[:10]]
 
     # Run Models
-    random_forests(train_original_x[original_features], train_original_y)
+    # Random Forests:
+    print("Running Random Forests: ")
+    original_rfe = random_forests(train_original_x[original_features], train_original_y)
+    young_old_rfe = np.concatenate((random_forests(train_old_x[old_features], train_old_y),
+                              random_forests(train_young_x[young_features], train_young_y)))
+    print("Accuracy using one model: ", accuracy_score(original_rfe, train_original_y))
+    print("Accuracy using two models: ",
+    accuracy_score(young_old_rfe, np.concatenate((train_old_y.values, train_young_y.values))))
+
+    print("============================")
+
+    # Naive Bayes
+    print("Running Naive Bayes: ")
+    original_cpl, original_mnb = naive_bayes(train_original_x[original_features], train_original_y)
+    old_cpl, old_mnb = naive_bayes(train_old_x[old_features], train_old_y)
+    young_cpl, young_mnb = naive_bayes(train_young_x[young_features], train_young_y)
+    young_old_mnb = np.concatenate((old_mnb, young_mnb))
+    young_old_cpl = np.concatenate((old_cpl, young_cpl))
+    print("Multinomial Naive Bayes Accuracy with 1 model: ", accuracy_score(original_mnb, train_original_y))
+    print("Multinomial Naive Bayes Accuracy with 2 models: ",
+          accuracy_score(young_old_mnb, np.concatenate((train_old_y.values, train_young_y.values))))
+    print("Complement Naive Bayes Accuracy with 1 model: ", accuracy_score(original_cpl, train_original_y))
+    print("Complement Naive Bayes Accuracy with 2 models: ",
+          accuracy_score(young_old_cpl, np.concatenate((train_old_y.values, train_young_y.values))))
 
 def clean(data):
     # dropping less important columns
@@ -68,71 +92,30 @@ def split(original):
     return original_x, original_y, young_x, young_y, old_x, old_y
 
 def random_forests(x, y):
-    # Split into train and test
-    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=66)
     # fitting model
     rfc = RandomForestClassifier()
-    rfc.fit(X_train, y_train)
-    rfc_predict = rfc.predict(X_test)
+    rfc.fit(x, y)
+    rfc_predict = rfc.predict(x)
 
-    # scoring
-    rfc_cv_score = cross_val_score(rfc, x, y, cv=10)
+    return rfc_predict
 
-    print("=== Confusion Matrix ===")
-    print(confusion_matrix(y_test, rfc_predict))
-    print('\n')
-    print("=== Classification Report ===")
-    print(classification_report(y_test, rfc_predict))
-    print('\n')
-    print("=== All AUC Scores ===")
-    print(rfc_cv_score)
-    print('\n')
-    print("=== Mean AUC Score ===")
-    print("Mean AUC Score - Random Forest: ", rfc_cv_score.mean())
+"""
+Input: x data and y data
+Output: CPL predictions, MNB predictions
+"""
+def naive_bayes(x, y):
+    # import complementNB,MultinomialNB
+    cpl = ComplementNB()
+    mnb = MultinomialNB()
+    # train our dataset
+    cpl.fit(x, y)
+    mnb.fit(x, y)
+    # perform prediction and find accuracy
+    y_test_cpl = cpl.predict(x)
+    y_test_mnb = mnb.predict(x)
 
-    # # number of trees in random forest
-    # n_estimators = [int(x) for x in np.linspace(start=200, stop=2000, num=10)]
-    # # number of features at every split
-    # max_features = ['auto', 'sqrt']
-    #
-    # # max depth
-    # max_depth = [int(x) for x in np.linspace(100, 500, num=11)]
-    # max_depth.append(None)
-    # # create random grid
-    # random_grid = {
-    #     'n_estimators': n_estimators,
-    #     'max_features': max_features,
-    #     'max_depth': max_depth
-    # }
-    # # Random search of parameters
-    # rfc_random = RandomizedSearchCV(estimator=rfc, param_distributions=random_grid, n_iter=5, cv=3, verbose=2,
-    #                                 random_state=42, n_jobs=-1)
-    # # Fit the model
-    # rfc_random.fit(X_train, y_train)
-    # # print results
-    # print(rfc_random.best_params_)
+    return y_test_cpl, y_test_mnb
 
-    # rfc = RandomForestClassifier(n_estimators=rfc_random.best_params_['n_estimators'],
-    #                              max_depth=rfc_random.best_params_['max_depth'],
-    #                              max_features=rfc_random.best_params_['max_features'])
-    rfc = RandomForestClassifier(n_estimators=1400,
-                                 max_depth=100,
-                                 max_features='auto')
-
-    rfc.fit(X_train, y_train)
-    rfc_predict = rfc.predict(X_test)
-    rfc_cv_score = cross_val_score(rfc, x, y, cv=10)
-    print("=== Confusion Matrix ===")
-    print(confusion_matrix(y_test, rfc_predict))
-    print('\n')
-    print("=== Classification Report ===")
-    print(classification_report(y_test, rfc_predict))
-    print('\n')
-    print("=== All AUC Scores ===")
-    print(rfc_cv_score)
-    print('\n')
-    print("=== Mean AUC Score ===")
-    print("Mean AUC Score - Random Forest: ", rfc_cv_score.mean())
 
 if __name__ == '__main__':
     main()
