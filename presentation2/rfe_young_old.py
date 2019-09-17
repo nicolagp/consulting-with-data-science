@@ -5,19 +5,26 @@ from sklearn.feature_selection import RFE, f_regression
 
 def main():
     data = pd.read_csv('../data/prudential-life-insurance-assessment/train.csv')
-    # Cleaning data
-    data = clean(data)
-    # Get values to run linear regression
-    X = data.drop(['Response', 'Product_Info_2'], axis=1).as_matrix()
-    Y = data['Response']
+    young = data[data['Ins_Age'] < 0.2].copy()
+    old = data[data['Ins_Age'] >= 0.2].copy()
+    data_rank = get_ranking(data)[:10]
+    old_rank = get_ranking(old)[:10]
+    young_rank = get_ranking(young)[:10]
 
-    # Linear Regression and RFE
+def get_ranking(df):
+    df = clean(df)
+    X = df.drop(['Response', 'Product_Info_2', "Id"], axis=1).values
+    X2 = df.drop(['Response', 'Product_Info_2', "Id"], axis=1)
+    Y = df['Response']
     lr = LinearRegression(normalize=True)
     lr.fit(X, Y)
-
-    rfe = RFE(lr, n_features_to_select=10, verbose=3)
+    rfe = RFE(lr, n_features_to_select=10)
     rfe.fit(X, Y)
-    print(rfe.ranking_)
+
+    labels = list(X2.columns)
+    ranking = {labels[i]: rfe.ranking_[i] for i in range(len(labels))}
+    ranking_list = [(k, ranking[k]) for k in sorted(ranking, key=ranking.get)]
+    return ranking_list
 
 def clean(data):
     # dropping less important columns
@@ -39,4 +46,3 @@ def clean(data):
 
 if __name__ == '__main__':
     main()
-
